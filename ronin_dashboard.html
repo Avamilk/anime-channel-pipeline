@@ -1,0 +1,998 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RONIN — Production Dashboard</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,500;0,9..40,700;1,9..40,300&family=DM+Mono:wght@400;500&display=swap');
+
+:root {
+  --bg: #080810;
+  --surface: #0e0e1a;
+  --surface2: #13131f;
+  --border: #1c1c2e;
+  --border2: #252538;
+  --text: #d8d8ee;
+  --muted: #4a4a6a;
+  --muted2: #2a2a42;
+  --accent: #e63946;
+  --accent2: #ff6b6b;
+  --purple: #7b68ee;
+  --green: #2ecc71;
+  --yellow: #f39c12;
+  --blue: #3498db;
+  --font-display: 'Bebas Neue', sans-serif;
+  --font-body: 'DM Sans', sans-serif;
+  --font-mono: 'DM Mono', monospace;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: var(--font-body); background: var(--bg); color: var(--text);
+       min-height: 100vh; overflow-x: hidden; }
+
+/* Noise texture overlay */
+body::before { content: ''; position: fixed; inset: 0; pointer-events: none; z-index: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.03'/%3E%3C/svg%3E");
+  opacity: .4; }
+
+/* HEADER */
+header { display: flex; align-items: center; justify-content: space-between;
+         padding: 0 28px; height: 56px; border-bottom: 1px solid var(--border);
+         background: rgba(8,8,16,.95); backdrop-filter: blur(12px);
+         position: sticky; top: 0; z-index: 200; }
+.logo { display: flex; align-items: center; gap: 10px; }
+.logo-mark { width: 28px; height: 28px; position: relative; }
+.logo-mark svg { width: 100%; height: 100%; }
+.logo-text { font-family: var(--font-display); font-size: 24px; letter-spacing: .12em;
+             color: var(--text); line-height: 1; }
+.logo-sub { font-size: 10px; color: var(--muted); font-weight: 300; letter-spacing: .2em;
+            text-transform: uppercase; margin-top: 1px; }
+.header-right { display: flex; align-items: center; gap: 16px; }
+.run-badge { background: var(--surface2); border: 1px solid var(--border2);
+             border-radius: 6px; padding: 5px 12px; font-family: var(--font-mono);
+             font-size: 11px; color: var(--muted); }
+.status-indicator { display: flex; align-items: center; gap: 7px; font-size: 12px;
+                    font-weight: 500; color: var(--yellow); }
+.pulse-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--yellow);
+             box-shadow: 0 0 0 0 rgba(243,156,18,.5);
+             animation: pulse 2s infinite; }
+@keyframes pulse { 0%{box-shadow:0 0 0 0 rgba(243,156,18,.5)} 70%{box-shadow:0 0 0 8px rgba(243,156,18,0)} 100%{box-shadow:0 0 0 0 rgba(243,156,18,0)} }
+.credit-chip { display: flex; align-items: center; gap: 6px; background: var(--surface);
+               border: 1px solid var(--border); border-radius: 20px; padding: 5px 14px;
+               font-size: 12px; font-weight: 500; }
+.credit-num { color: var(--green); font-family: var(--font-mono); font-weight: 500; }
+
+/* NAV */
+nav { display: flex; gap: 0; padding: 0 24px;
+      border-bottom: 1px solid var(--border); background: var(--surface); }
+nav button { background: none; border: none; color: var(--muted); padding: 13px 18px;
+             cursor: pointer; font-size: 13px; font-weight: 500; font-family: var(--font-body);
+             border-bottom: 2px solid transparent; transition: all .15s; letter-spacing: .01em; }
+nav button:hover { color: var(--text); }
+nav button.active { color: var(--accent2); border-bottom-color: var(--accent); }
+
+/* LAYOUT */
+.tab { display: none; padding: 28px; max-width: 1280px; margin: 0 auto; position: relative; z-index: 1; }
+.tab.active { display: block; }
+
+/* ── TEAM TAB ──────────────────────────────────────────────────── */
+.team-header { margin-bottom: 28px; }
+.team-title { font-family: var(--font-display); font-size: 32px; letter-spacing: .1em;
+              color: var(--text); margin-bottom: 4px; }
+.team-sub { font-size: 13px; color: var(--muted); font-weight: 300; }
+
+.team-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px,1fr)); gap: 16px; }
+
+.agent-card { background: var(--surface); border: 1px solid var(--border);
+              border-radius: 14px; overflow: hidden; transition: border-color .2s; }
+.agent-card:hover { border-color: var(--border2); }
+.agent-card.running { border-color: rgba(243,156,18,.3); }
+.agent-card.done { border-color: rgba(46,204,113,.2); }
+.agent-card.error { border-color: rgba(230,57,70,.3); }
+.agent-card.idle { opacity: .6; }
+
+.agent-top { padding: 18px 20px 14px; display: flex; align-items: flex-start;
+             justify-content: space-between; }
+.agent-icon-wrap { width: 44px; height: 44px; border-radius: 10px; display: flex;
+                   align-items: center; justify-content: center; font-size: 20px;
+                   margin-bottom: 10px; }
+.icon-scout { background: rgba(52,152,219,.12); }
+.icon-researcher { background: rgba(155,89,182,.12); }
+.icon-writer { background: rgba(46,204,113,.12); }
+.icon-visual { background: rgba(230,57,70,.12); }
+.icon-audio { background: rgba(243,156,18,.12); }
+.icon-assembly { background: rgba(123,104,238,.12); }
+.icon-publisher { background: rgba(52,152,219,.12); }
+.icon-director { background: rgba(230,57,70,.12); }
+
+.agent-status-badge { font-size: 10px; font-weight: 600; padding: 3px 9px; border-radius: 20px;
+                      font-family: var(--font-mono); letter-spacing: .05em; }
+.s-idle    { background: var(--muted2); color: var(--muted); }
+.s-running { background: rgba(243,156,18,.15); color: var(--yellow); border: 1px solid rgba(243,156,18,.2); }
+.s-done    { background: rgba(46,204,113,.12); color: var(--green); border: 1px solid rgba(46,204,113,.2); }
+.s-waiting { background: rgba(52,152,219,.12); color: var(--blue); border: 1px solid rgba(52,152,219,.2); }
+.s-error   { background: rgba(230,57,70,.12); color: var(--accent2); border: 1px solid rgba(230,57,70,.2); }
+
+.agent-name { font-size: 15px; font-weight: 700; color: var(--text); margin-bottom: 3px; }
+.agent-role { font-size: 11px; color: var(--muted); font-weight: 300; letter-spacing: .05em;
+              text-transform: uppercase; }
+.agent-body { padding: 0 20px 16px; }
+.agent-task { font-size: 13px; color: #8888aa; line-height: 1.5; margin-bottom: 12px;
+              min-height: 38px; }
+.agent-progress { height: 3px; background: var(--muted2); border-radius: 2px; overflow: hidden; }
+.agent-progress-fill { height: 100%; border-radius: 2px; transition: width .6s ease; }
+.fill-yellow { background: linear-gradient(90deg, var(--yellow), #f1c40f); }
+.fill-green  { background: linear-gradient(90deg, var(--green), #27ae60); }
+.fill-red    { background: linear-gradient(90deg, var(--accent), #c0392b); }
+.fill-blue   { background: linear-gradient(90deg, var(--blue), #2980b9); }
+.agent-footer { display: flex; justify-content: space-between; align-items: center;
+                padding: 10px 20px 14px; border-top: 1px solid var(--border); }
+.agent-metric { font-size: 11px; color: var(--muted); font-family: var(--font-mono); }
+.agent-metric span { color: var(--text); font-weight: 500; }
+
+/* ── PIPELINE TAB ──────────────────────────────────────────────── */
+.stat-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px,1fr));
+             gap: 12px; margin-bottom: 28px; }
+.stat-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+             padding: 18px; }
+.stat-label { font-size: 10px; color: var(--muted); text-transform: uppercase;
+              letter-spacing: .12em; margin-bottom: 8px; }
+.stat-val { font-family: var(--font-display); font-size: 28px; letter-spacing: .05em; }
+.v-red { color: var(--accent2); } .v-green { color: var(--green); }
+.v-yellow { color: var(--yellow); } .v-purple { color: var(--purple); }
+.v-gray { color: var(--muted); }
+
+/* Cost estimate bar */
+.cost-bar { background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+            padding: 20px; margin-bottom: 20px; }
+.cost-title { font-size: 12px; color: var(--muted); text-transform: uppercase;
+              letter-spacing: .1em; margin-bottom: 14px; }
+.cost-row { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; }
+.cost-label { font-size: 13px; color: #8888aa; width: 120px; flex-shrink: 0; }
+.cost-track { flex: 1; height: 6px; background: var(--muted2); border-radius: 3px; overflow: hidden; }
+.cost-fill { height: 100%; border-radius: 3px; background: linear-gradient(90deg, var(--purple), var(--accent)); }
+.cost-amount { font-family: var(--font-mono); font-size: 12px; color: var(--text); width: 60px; text-align: right; }
+.cost-total { display: flex; justify-content: space-between; padding-top: 12px;
+              border-top: 1px solid var(--border); margin-top: 4px; }
+.cost-total-label { font-size: 13px; color: var(--muted); }
+.cost-total-val { font-family: var(--font-mono); font-size: 14px; color: var(--green); font-weight: 500; }
+
+/* Content routing */
+.routing-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+                padding: 20px; margin-bottom: 20px; }
+.routing-title { font-size: 12px; color: var(--muted); text-transform: uppercase;
+                 letter-spacing: .1em; margin-bottom: 14px; }
+.routing-row { display: flex; align-items: center; gap: 10px; padding: 8px 0;
+               border-bottom: 1px solid var(--border); font-size: 13px; }
+.routing-row:last-child { border-bottom: none; }
+.r-scene { color: var(--muted); font-family: var(--font-mono); font-size: 11px; width: 64px; }
+.r-provider { padding: 3px 10px; border-radius: 4px; font-size: 11px; font-weight: 600;
+              font-family: var(--font-mono); }
+.r-seedance { background: rgba(123,104,238,.15); color: var(--purple); }
+.r-runway   { background: rgba(52,152,219,.15); color: var(--blue); }
+.r-kling    { background: rgba(46,204,113,.15); color: var(--green); }
+.r-reason   { font-size: 12px; color: #6666aa; margin-left: 4px; }
+.r-lang     { margin-left: auto; font-size: 10px; font-family: var(--font-mono);
+              color: var(--muted); padding: 2px 7px; background: var(--muted2);
+              border-radius: 3px; }
+
+/* Log */
+.log-wrap { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+.log-header { padding: 12px 18px; border-bottom: 1px solid var(--border);
+              font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .1em; }
+.log-body { padding: 12px; font-family: var(--font-mono); font-size: 11px;
+            max-height: 200px; overflow-y: auto; }
+.log-line { display: flex; gap: 12px; padding: 3px 0; }
+.log-ts { color: var(--muted2); flex-shrink: 0; }
+.log-event { color: #5a5a8a; }
+.log-event.good { color: #3d8a5a; }
+.log-event.warn { color: #8a6a1a; }
+.log-event.info { color: #3a5a8a; }
+
+/* ── STORYBOARD TAB ───────────────────────────────────────────── */
+.sb-header { display: flex; align-items: flex-start; justify-content: space-between;
+             margin-bottom: 28px; gap: 16px; flex-wrap: wrap; }
+.sb-meta .sb-ep { font-size: 10px; color: var(--muted); text-transform: uppercase;
+                  letter-spacing: .15em; margin-bottom: 6px; }
+.sb-meta .sb-title { font-family: var(--font-display); font-size: 28px; letter-spacing: .08em;
+                     line-height: 1.1; }
+.sb-meta .sb-style { font-size: 13px; color: var(--purple); margin-top: 5px; font-weight: 300; }
+.sb-actions { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.progress-ring { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); }
+.progress-ring strong { color: var(--text); font-family: var(--font-mono); }
+.approve-btn { background: var(--green); color: #000; border: none; padding: 11px 26px;
+               border-radius: 8px; font-weight: 700; font-size: 14px; font-family: var(--font-body);
+               cursor: pointer; transition: all .15s; letter-spacing: .02em; }
+.approve-btn:hover { background: #27ae60; box-shadow: 0 0 24px rgba(46,204,113,.3); }
+.approve-btn:disabled { background: var(--muted2); color: var(--muted); cursor: not-allowed;
+                        box-shadow: none; }
+.approved-pill { background: rgba(46,204,113,.1); border: 1px solid rgba(46,204,113,.2);
+                 color: var(--green); padding: 10px 18px; border-radius: 8px; font-size: 13px;
+                 font-weight: 600; }
+
+.panel-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px,1fr)); gap: 18px; }
+.panel { background: var(--surface); border: 1px solid var(--border); border-radius: 14px;
+         overflow: hidden; transition: border-color .2s; }
+.panel:hover { border-color: var(--border2); }
+.panel.complete { border-color: rgba(46,204,113,.2); }
+.panel.redo-req { border-color: rgba(243,156,18,.3); }
+.panel-img { width: 100%; aspect-ratio: 16/9; background: var(--bg); position: relative;
+             overflow: hidden; }
+.panel-img img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.panel-img video { width: 100%; height: 100%; object-fit: cover; }
+.panel-placeholder { width: 100%; height: 100%; display: flex; flex-direction: column;
+                     align-items: center; justify-content: center; gap: 8px; }
+.placeholder-icon { font-size: 24px; opacity: .2; }
+.placeholder-txt { font-size: 11px; color: var(--muted2); font-family: var(--font-mono); }
+.gen-shimmer { width: 50%; height: 2px; background: var(--muted2); border-radius: 2px;
+               overflow: hidden; margin-top: 6px; }
+.gen-fill { height: 100%; background: linear-gradient(90deg, var(--purple), var(--accent));
+            animation: genslide 1.8s ease-in-out infinite; }
+@keyframes genslide { 0%,100%{transform:translateX(-100%)} 50%{transform:translateX(200%)} }
+
+.badges { position: absolute; top: 8px; left: 8px; right: 8px;
+          display: flex; justify-content: space-between; }
+.b { padding: 3px 8px; border-radius: 4px; font-size: 10px; font-weight: 600;
+     font-family: var(--font-mono); backdrop-filter: blur(8px); }
+.b-done { background: rgba(14,50,30,.85); color: #4ade80; border: 1px solid rgba(74,222,128,.15); }
+.b-gen  { background: rgba(20,35,60,.85); color: #60a5fa; border: 1px solid rgba(96,165,250,.15); }
+.b-wait { background: rgba(10,10,20,.7); color: #444; }
+.b-redo { background: rgba(60,35,5,.85); color: #fbbf24; border: 1px solid rgba(251,191,36,.15); }
+.b-type { background: rgba(10,10,20,.7); color: var(--purple); }
+.b-route { position: absolute; bottom: 8px; right: 8px; background: rgba(52,152,219,.25);
+           color: #60a5fa; padding: 3px 8px; border-radius: 4px; font-size: 10px;
+           font-family: var(--font-mono); font-weight: 600; }
+.b-deg { position: absolute; bottom: 8px; left: 8px; background: rgba(60,20,5,.85);
+         color: #f97316; padding: 3px 8px; border-radius: 4px; font-size: 10px;
+         font-family: var(--font-mono); }
+
+.panel-body { padding: 16px 18px; }
+.p-num  { font-size: 10px; color: var(--muted); font-family: var(--font-mono);
+          letter-spacing: .1em; margin-bottom: 3px; }
+.p-name { font-size: 15px; font-weight: 700; margin-bottom: 10px; }
+.chips  { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px; }
+.chip   { background: var(--muted2); color: var(--muted); padding: 3px 8px;
+          border-radius: 4px; font-size: 11px; font-family: var(--font-mono); }
+.sec-label { font-size: 10px; color: var(--muted); text-transform: uppercase;
+             letter-spacing: .1em; margin-bottom: 4px; }
+.sec-txt { font-size: 13px; color: #9090aa; line-height: 1.6; margin-bottom: 10px; }
+.vo-txt { font-size: 13px; color: #7a7a9a; line-height: 1.7; font-style: italic;
+          border-left: 2px solid var(--muted2); padding-left: 12px; margin-bottom: 10px; }
+.panel-foot { display: flex; gap: 8px; align-items: center; padding-top: 10px;
+              border-top: 1px solid var(--border); }
+.btn-sm { background: var(--muted2); color: var(--muted); border: none; padding: 5px 12px;
+          border-radius: 5px; font-size: 11px; font-family: var(--font-body);
+          cursor: pointer; transition: all .15s; }
+.btn-sm:hover { background: var(--border2); color: var(--text); }
+.btn-redo { background: rgba(60,35,5,.6); color: #d97706; border: 1px solid rgba(243,156,18,.15); }
+.btn-redo:hover { background: rgba(80,50,8,.8); color: var(--yellow); }
+.redo-panel { background: var(--bg); border-radius: 8px; padding: 12px; margin-top: 10px;
+              border: 1px solid rgba(243,156,18,.2); display: none; }
+.redo-panel textarea { width: 100%; background: transparent; border: none; color: var(--text);
+                       font-size: 13px; font-family: var(--font-body); resize: vertical;
+                       min-height: 56px; outline: none; }
+.redo-panel textarea::placeholder { color: var(--muted2); }
+.redo-send { background: var(--yellow); color: #000; border: none; padding: 6px 16px;
+             border-radius: 5px; font-size: 12px; font-weight: 700; font-family: var(--font-body);
+             cursor: pointer; float: right; margin-top: 8px; }
+.prompt-reveal { background: var(--bg); border-radius: 6px; padding: 10px 12px; margin-top: 8px;
+                 display: none; }
+.prompt-reveal code { font-size: 11px; font-family: var(--font-mono); color: #4a4a6a;
+                      line-height: 1.7; white-space: pre-wrap; display: block; }
+
+/* ── AUDIO TAB ───────────────────────────────────────────────── */
+.audio-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px,1fr)); gap: 16px; }
+.audio-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+              padding: 18px; }
+.audio-scene { font-size: 10px; color: var(--muted); font-family: var(--font-mono); margin-bottom: 6px; }
+.audio-name { font-size: 14px; font-weight: 700; margin-bottom: 12px; }
+.audio-player { display: flex; align-items: center; gap: 10px; }
+.play-btn { width: 36px; height: 36px; border-radius: 50%; background: var(--accent);
+            border: none; color: #fff; font-size: 14px; cursor: pointer; flex-shrink: 0;
+            display: flex; align-items: center; justify-content: center; transition: opacity .15s; }
+.play-btn:hover { opacity: .8; }
+.waveform { flex: 1; height: 36px; background: var(--bg); border-radius: 6px;
+            display: flex; align-items: center; justify-content: center; overflow: hidden; }
+.waveform-bars { display: flex; gap: 2px; align-items: center; height: 28px; }
+.waveform-bars span { width: 3px; border-radius: 2px; background: var(--purple); opacity: .5; }
+.audio-dur { font-family: var(--font-mono); font-size: 11px; color: var(--muted); }
+.music-card { border-color: rgba(243,156,18,.2); }
+.music-icon { font-size: 24px; margin-bottom: 10px; }
+.audio-status { font-size: 11px; padding: 3px 8px; border-radius: 4px; font-family: var(--font-mono);
+                display: inline-block; margin-top: 10px; }
+.as-ready { background: rgba(46,204,113,.1); color: var(--green); }
+.as-gen   { background: rgba(243,156,18,.1); color: var(--yellow); }
+.as-wait  { background: var(--muted2); color: var(--muted); }
+
+/* ── SCRIPT TAB ─────────────────────────────────────────────── */
+.diff-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+             overflow: hidden; margin-bottom: 16px; }
+.diff-header { display: flex; justify-content: space-between; align-items: center;
+               padding: 14px 18px; border-bottom: 1px solid var(--border); }
+.diff-title { font-size: 14px; font-weight: 700; }
+.diff-meta { font-size: 11px; color: var(--muted); font-family: var(--font-mono); }
+.diff-body { padding: 0; }
+.diff-line { display: flex; gap: 0; font-family: var(--font-mono); font-size: 12px;
+             line-height: 1.8; }
+.diff-num  { width: 40px; text-align: right; padding: 0 10px; color: var(--muted2);
+             flex-shrink: 0; user-select: none; border-right: 1px solid var(--border); }
+.diff-content { padding: 0 14px; flex: 1; }
+.diff-line.added   { background: rgba(46,204,113,.07); }
+.diff-line.removed { background: rgba(230,57,70,.07); }
+.diff-line.added .diff-content   { color: #4ade80; }
+.diff-line.removed .diff-content { color: #f87171; text-decoration: line-through; }
+.diff-line.added .diff-num   { color: #2d5a3d; }
+.diff-line.removed .diff-num { color: #5a2d2d; }
+.diff-prefix { width: 14px; flex-shrink: 0; }
+
+/* ── QUEUE TAB ──────────────────────────────────────────────── */
+.queue-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+              padding: 20px; margin-bottom: 12px; display: flex; gap: 16px; align-items: flex-start;
+              transition: border-color .2s; }
+.queue-card:hover { border-color: var(--border2); }
+.queue-num { font-family: var(--font-display); font-size: 36px; color: var(--muted2);
+             line-height: 1; flex-shrink: 0; width: 36px; }
+.queue-content { flex: 1; }
+.queue-title { font-size: 15px; font-weight: 700; margin-bottom: 5px; }
+.queue-hook { font-size: 13px; color: #7a7a9a; line-height: 1.5; margin-bottom: 10px; }
+.queue-tags { display: flex; gap: 6px; flex-wrap: wrap; }
+.q-tag { background: var(--muted2); color: var(--muted); padding: 3px 9px; border-radius: 4px; font-size: 11px; }
+.queue-actions { display: flex; flex-direction: column; gap: 8px; flex-shrink: 0; }
+.q-pick  { background: var(--accent); color: #fff; border: none; padding: 8px 18px;
+           border-radius: 7px; font-weight: 700; font-size: 13px; font-family: var(--font-body);
+           cursor: pointer; transition: opacity .15s; }
+.q-pick:hover { opacity: .85; }
+.q-skip { background: var(--muted2); color: var(--muted); border: none; padding: 8px 18px;
+          border-radius: 7px; font-size: 13px; font-family: var(--font-body); cursor: pointer;
+          transition: background .15s; }
+.q-skip:hover { background: var(--border2); }
+.viral-stars { color: var(--yellow); font-size: 12px; margin-bottom: 6px; }
+
+/* ── PERFORMANCE TAB ────────────────────────────────────────── */
+.perf-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px; }
+@media (max-width: 700px) { .perf-grid { grid-template-columns: 1fr; } }
+.chart-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+              padding: 20px; }
+.chart-title { font-size: 11px; color: var(--muted); text-transform: uppercase;
+               letter-spacing: .1em; margin-bottom: 16px; }
+.bar-chart { display: flex; flex-direction: column; gap: 10px; }
+.bar-row { display: flex; align-items: center; gap: 10px; }
+.bar-label { font-size: 12px; color: #7a7a9a; width: 130px; flex-shrink: 0; overflow: hidden;
+             text-overflow: ellipsis; white-space: nowrap; }
+.bar-track { flex: 1; height: 8px; background: var(--muted2); border-radius: 4px; overflow: hidden; }
+.bar-fill { height: 100%; border-radius: 4px; transition: width .8s ease; }
+.bar-val { font-family: var(--font-mono); font-size: 11px; color: var(--muted); width: 50px; text-align: right; }
+.style-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px,1fr)); gap: 10px; }
+.style-tile { background: var(--bg); border: 1px solid var(--border); border-radius: 8px;
+              padding: 14px 12px; text-align: center; }
+.style-score { font-family: var(--font-display); font-size: 28px; color: var(--accent2); }
+.style-name  { font-size: 11px; color: var(--muted); margin-top: 3px; }
+.insight-card { background: var(--surface); border: 1px solid rgba(123,104,238,.2);
+                border-radius: 12px; padding: 20px; margin-bottom: 12px; }
+.insight-icon { font-size: 18px; margin-bottom: 8px; }
+.insight-txt { font-size: 14px; color: var(--text); line-height: 1.6; }
+.insight-sub { font-size: 12px; color: var(--muted); margin-top: 6px; }
+
+/* SCROLLBAR */
+::-webkit-scrollbar { width: 6px; } ::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--muted2); border-radius: 3px; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-mark">
+      <svg viewBox="0 0 28 28" fill="none">
+        <polygon points="14,2 26,9 26,23 14,28 2,23 2,9" stroke="#e63946" stroke-width="1.5" fill="none"/>
+        <polygon points="14,7 21,11 21,19 14,22 7,19 7,11" stroke="#e63946" stroke-width="1" fill="rgba(230,57,70,.08)"/>
+        <circle cx="14" cy="14" r="2.5" fill="#e63946"/>
+      </svg>
+    </div>
+    <div>
+      <div class="logo-text">RONIN</div>
+      <div class="logo-sub">Production OS</div>
+    </div>
+  </div>
+  <div class="header-right">
+    <div class="run-badge">RUN #047 · Fukushima Robots</div>
+    <div class="status-indicator"><span class="pulse-dot"></span>generating</div>
+    <div class="credit-chip">⚡ <span class="credit-num">614</span>&nbsp;credits</div>
+  </div>
+</header>
+
+<nav>
+  <button onclick="show('team')">Team</button>
+  <button onclick="show('pipeline')">Pipeline</button>
+  <button class="active" onclick="show('storyboard')">Storyboard</button>
+  <button onclick="show('audio')">Audio</button>
+  <button onclick="show('script')">Script</button>
+  <button onclick="show('queue')">Queue</button>
+  <button onclick="show('performance')">Performance</button>
+</nav>
+
+<!-- ═══════════════ TEAM TAB ═══════════════ -->
+<div id="tab-team" class="tab">
+  <div class="team-header">
+    <div class="team-title">YOUR CREW</div>
+    <div class="team-sub">8 agents · 3 active · episode 047 in progress</div>
+  </div>
+  <div class="team-grid">
+
+    <div class="agent-card running">
+      <div class="agent-top">
+        <div>
+          <div class="agent-icon-wrap icon-director">🎬</div>
+          <div class="agent-name">Director</div>
+          <div class="agent-role">Orchestrator</div>
+        </div>
+        <span class="agent-status-badge s-running">RUNNING</span>
+      </div>
+      <div class="agent-body">
+        <div class="agent-task">Polling visual jobs · 5/8 scenes complete · waiting on batch 2 before spawning audio</div>
+        <div class="agent-progress"><div class="agent-progress-fill fill-yellow" style="width:62%"></div></div>
+      </div>
+      <div class="agent-footer">
+        <div class="agent-metric">sessions <span>12</span></div>
+        <div class="agent-metric">last active <span>14s ago</span></div>
+      </div>
+    </div>
+
+    <div class="agent-card done">
+      <div class="agent-top">
+        <div>
+          <div class="agent-icon-wrap icon-scout">🔍</div>
+          <div class="agent-name">Scout</div>
+          <div class="agent-role">Story Discovery</div>
+        </div>
+        <span class="agent-status-badge s-done">DONE</span>
+      </div>
+      <div class="agent-body">
+        <div class="agent-task">Found 5 candidates this morning · Fukushima robots selected · dedup clean</div>
+        <div class="agent-progress"><div class="agent-progress-fill fill-green" style="width:100%"></div></div>
+      </div>
+      <div class="agent-footer">
+        <div class="agent-metric">stories found <span>5</span></div>
+        <div class="agent-metric">completed <span>08:14</span></div>
+      </div>
+    </div>
+
+    <div class="agent-card done">
+      <div class="agent-top">
+        <div>
+          <div class="agent-icon-wrap icon-researcher">🧠</div>
+          <div class="agent-name">Researcher</div>
+          <div class="agent-role">Deep Research</div>
+        </div>
+        <span class="agent-status-badge s-done">DONE</span>
+      </div>
+      <div class="agent-body">
+        <div class="agent-task">Verified facts across 6 sources · mapped 5 anime archetypes · flagged 1 contested date</div>
+        <div class="agent-progress"><div class="agent-progress-fill fill-green" style="width:100%"></div></div>
+      </div>
+      <div class="agent-footer">
+        <div class="agent-metric">sources <span>6</span></div>
+        <div class="agent-metric">flags <span>1</span></div>
+      </div>
+    </div>
+
+    <div class="agent-card done">
+      <div class="agent-top">
+        <div>
+          <div class="agent-icon-wrap icon-writer">✍️</div>
+          <div class="agent-name">Scriptwriter</div>
+          <div class="agent-role">Narrative</div>
+        </div>
+        <span class="agent-status-badge s-done">DONE</span>
+      </div>
+      <div class="agent-body">
+        <div class="agent-task">v2 approved · 8 scenes · 5:12 runtime · Shorts cut: scenes 1+5 = 53s</div>
+        <div class="agent-progress"><div class="agent-progress-fill fill-green" style="width:100%"></div></div>
+      </div>
+      <div class="agent-footer">
+        <div class="agent-metric">words <span>612</span></div>
+        <div class="agent-metric">version <span>v2</span></div>
+      </div>
+    </div>
+
+    <div class="agent-card running">
+      <div class="agent-top">
+        <div>
+          <div class="agent-icon-wrap icon-visual">🎨</div>
+          <div class="agent-name">Visual</div>
+          <div class="agent-role">Image · Video Gen</div>
+        </div>
+        <span class="agent-status-badge s-running">RUNNING</span>
+      </div>
+      <div class="agent-body">
+        <div class="agent-task">Batch 2 submitted · scene_5 polling (62s elapsed) · scenes 6–8 queued</div>
+        <div class="agent-progress"><div class="agent-progress-fill fill-yellow" style="width:62%"></div></div>
+      </div>
+      <div class="agent-footer">
+        <div class="agent-metric">complete <span>5/8</span></div>
+        <div class="agent-metric">credits used <span>218</span></div>
+      </div>
+    </div>
+
+    <div class="agent-card" style="opacity:.55">
+      <div class="agent-top">
+        <div>
+          <div class="agent-icon-wrap icon-audio">🎙️</div>
+          <div class="agent-name">Audio</div>
+          <div class="agent-role">TTS · Music</div>
+        </div>
+        <span class="agent-status-badge s-waiting">WAITING</span>
+      </div>
+      <div class="agent-body">
+        <div class="agent-task">Waiting for visual phase completion before generating voiceover + music</div>
+        <div class="agent-progress"><div class="agent-progress-fill fill-blue" style="width:0%"></div></div>
+      </div>
+      <div class="agent-footer">
+        <div class="agent-metric">scenes <span>0/8</span></div>
+        <div class="agent-metric">voice id <span>saved</span></div>
+      </div>
+    </div>
+
+    <div class="agent-card idle">
+      <div class="agent-top">
+        <div>
+          <div class="agent-icon-wrap icon-assembly">🎞️</div>
+          <div class="agent-name">Assembly</div>
+          <div class="agent-role">Remotion · Compose</div>
+        </div>
+        <span class="agent-status-badge s-idle">IDLE</span>
+      </div>
+      <div class="agent-body">
+        <div class="agent-task">Waiting for assembly gate · needs visual + audio both complete</div>
+        <div class="agent-progress"><div class="agent-progress-fill fill-blue" style="width:0%"></div></div>
+      </div>
+      <div class="agent-footer">
+        <div class="agent-metric">gate open <span>no</span></div>
+        <div class="agent-metric">last run <span>ep046</span></div>
+      </div>
+    </div>
+
+    <div class="agent-card idle">
+      <div class="agent-top">
+        <div>
+          <div class="agent-icon-wrap icon-publisher">📤</div>
+          <div class="agent-name">Publisher</div>
+          <div class="agent-role">YouTube · TikTok · X</div>
+        </div>
+        <span class="agent-status-badge s-idle">IDLE</span>
+      </div>
+      <div class="agent-body">
+        <div class="agent-task">Ready to post when you approve the preview · platforms: YouTube + Shorts + TikTok</div>
+        <div class="agent-progress"><div class="agent-progress-fill fill-blue" style="width:0%"></div></div>
+      </div>
+      <div class="agent-footer">
+        <div class="agent-metric">published <span>46 videos</span></div>
+        <div class="agent-metric">platforms <span>3</span></div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ═══════════════ PIPELINE TAB ═══════════════ -->
+<div id="tab-pipeline" class="tab">
+  <div class="stat-grid">
+    <div class="stat-card"><div class="stat-label">Scenes Done</div><div class="stat-val v-purple">5/8</div></div>
+    <div class="stat-card"><div class="stat-label">Est. Cost</div><div class="stat-val v-yellow">~380</div></div>
+    <div class="stat-card"><div class="stat-label">Credits Left</div><div class="stat-val v-green">614</div></div>
+    <div class="stat-card"><div class="stat-label">Degraded</div><div class="stat-val v-gray">0</div></div>
+    <div class="stat-card"><div class="stat-label">Retries</div><div class="stat-val v-gray">1</div></div>
+    <div class="stat-card"><div class="stat-label">Runtime Est.</div><div class="stat-val v-purple">5:12</div></div>
+  </div>
+
+  <div class="cost-bar">
+    <div class="cost-title">Cost Breakdown — Episode 047</div>
+    <div class="cost-row"><span class="cost-label">Images (5×)</span><div class="cost-track"><div class="cost-fill" style="width:7%"></div></div><span class="cost-amount">25 cr</span></div>
+    <div class="cost-row"><span class="cost-label">Videos (3×)</span><div class="cost-track"><div class="cost-fill" style="width:50%"></div></div><span class="cost-amount">195 cr</span></div>
+    <div class="cost-row"><span class="cost-label">TTS (8 scenes)</span><div class="cost-track"><div class="cost-fill" style="width:10%"></div></div><span class="cost-amount">40 cr</span></div>
+    <div class="cost-row"><span class="cost-label">Music</span><div class="cost-track"><div class="cost-fill" style="width:5%"></div></div><span class="cost-amount">20 cr</span></div>
+    <div class="cost-row"><span class="cost-label">Thumbnails (2×)</span><div class="cost-track"><div class="cost-fill" style="width:3%"></div></div><span class="cost-amount">10 cr</span></div>
+    <div class="cost-total">
+      <span class="cost-total-label">Total estimated</span>
+      <span class="cost-total-val">~290 credits · 324 remaining after</span>
+    </div>
+  </div>
+
+  <div class="routing-card">
+    <div class="routing-title">Content Routing Decisions</div>
+    <div class="routing-row"><span class="r-scene">SC 1–2</span><span class="r-provider r-seedance">Seedance</span><span class="r-reason">establishing + dialogue — standard</span><span class="r-lang">ZH</span></div>
+    <div class="routing-row"><span class="r-scene">SC 3–4</span><span class="r-provider r-runway">Runway</span><span class="r-reason">→ routed west: tag=military_equipment</span><span class="r-lang">EN</span></div>
+    <div class="routing-row"><span class="r-scene">SC 5</span><span class="r-provider r-seedance">Seedance</span><span class="r-reason">data/atmosphere — standard</span><span class="r-lang">ZH</span></div>
+    <div class="routing-row"><span class="r-scene">SC 6–8</span><span class="r-provider r-kling">Kling</span><span class="r-reason">establishing + resolution — fast tier</span><span class="r-lang">ZH</span></div>
+  </div>
+
+  <div class="log-wrap">
+    <div class="log-header">Pipeline Log</div>
+    <div class="log-body">
+      <div class="log-line"><span class="log-ts">13:44:02</span><span class="log-event info">scene_5 polling · task_8f2a91c · 62s elapsed</span></div>
+      <div class="log-line"><span class="log-ts">13:42:18</span><span class="log-event good">scene_4 complete → assets/videos/scene_4.mp4 (184KB)</span></div>
+      <div class="log-line"><span class="log-ts">13:41:05</span><span class="log-event warn">scene_4 retry 1 → prompt rewrite (content policy: flagged 'military robot')</span></div>
+      <div class="log-line"><span class="log-ts">13:40:10</span><span class="log-event">scene_3 complete → assets/videos/scene_3.mp4</span></div>
+      <div class="log-line"><span class="log-ts">13:38:55</span><span class="log-event good">scene_2 complete → assets/images/scene_2.png</span></div>
+      <div class="log-line"><span class="log-ts">13:37:44</span><span class="log-event good">storyboard_approved by owner · starting visual generation</span></div>
+      <div class="log-line"><span class="log-ts">13:36:12</span><span class="log-event good">scene_1 anchor approved</span></div>
+      <div class="log-line"><span class="log-ts">13:31:05</span><span class="log-event good">script v2 approved · 8 scenes · 612 words</span></div>
+      <div class="log-line"><span class="log-ts">13:28:44</span><span class="log-event">research complete · 6 sources verified</span></div>
+      <div class="log-line"><span class="log-ts">13:15:00</span><span class="log-event">pipeline started · run_047 · story: fukushima robots</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════ STORYBOARD TAB ═══════════════ -->
+<div id="tab-storyboard" class="tab active">
+  <div class="sb-header">
+    <div class="sb-meta">
+      <div class="sb-ep">Episode 047 · Dark Seinen</div>
+      <div class="sb-title">THE MACHINES THAT SAVED JAPAN'S NUCLEAR HELL</div>
+      <div class="sb-style">◈ Wuxia-industrial · ink-wash shadows · high contrast</div>
+    </div>
+    <div class="sb-actions">
+      <div class="progress-ring"><strong>5</strong>/8 scenes ready</div>
+      <button class="approve-btn" onclick="handleApprove()">✅ Approve — Start Generation</button>
+    </div>
+  </div>
+  <div class="panel-grid" id="panel-grid"></div>
+</div>
+
+<!-- ═══════════════ AUDIO TAB ═══════════════ -->
+<div id="tab-audio" class="tab">
+  <div style="margin-bottom:20px">
+    <div style="font-family:var(--font-display);font-size:28px;letter-spacing:.08em;margin-bottom:4px">AUDIO PREVIEW</div>
+    <div style="font-size:13px;color:var(--muted);font-weight:300">Voiceover and music generated per scene — review before assembly</div>
+  </div>
+  <div class="audio-grid">
+    <div class="audio-card">
+      <div class="audio-scene">SCENE 1 · COLD OPEN</div>
+      <div class="audio-name">Voiceover</div>
+      <div class="audio-player">
+        <button class="play-btn" onclick="mockPlay(this)">▶</button>
+        <div class="waveform"><div class="waveform-bars" id="wb1"></div></div>
+        <span class="audio-dur">0:18</span>
+      </div>
+      <span class="audio-status as-ready">✓ Ready</span>
+    </div>
+    <div class="audio-card">
+      <div class="audio-scene">SCENE 2 · WORLD SETUP</div>
+      <div class="audio-name">Voiceover</div>
+      <div class="audio-player">
+        <button class="play-btn" onclick="mockPlay(this)">▶</button>
+        <div class="waveform"><div class="waveform-bars" id="wb2"></div></div>
+        <span class="audio-dur">0:32</span>
+      </div>
+      <span class="audio-status as-ready">✓ Ready</span>
+    </div>
+    <div class="audio-card">
+      <div class="audio-scene">SCENE 3 · THE ROBOT</div>
+      <div class="audio-name">Voiceover</div>
+      <div class="audio-player">
+        <button class="play-btn" onclick="mockPlay(this)">▶</button>
+        <div class="waveform"><div class="waveform-bars" id="wb3"></div></div>
+        <span class="audio-dur">0:15</span>
+      </div>
+      <span class="audio-status as-ready">✓ Ready</span>
+    </div>
+    <div class="audio-card" style="opacity:.5">
+      <div class="audio-scene">SCENES 4–8</div>
+      <div class="audio-name">Voiceover</div>
+      <div class="audio-player">
+        <button class="play-btn" style="background:var(--muted2)">▶</button>
+        <div class="waveform" style="background:var(--muted2)"></div>
+        <span class="audio-dur">—</span>
+      </div>
+      <span class="audio-status as-wait">Waiting for visual</span>
+    </div>
+    <div class="audio-card music-card">
+      <div class="music-icon">🎵</div>
+      <div class="audio-scene">BACKGROUND MUSIC</div>
+      <div class="audio-name">Industrial Tension · 5:12 runtime</div>
+      <div class="audio-player">
+        <button class="play-btn" onclick="mockPlay(this)">▶</button>
+        <div class="waveform"><div class="waveform-bars" id="wb4"></div></div>
+        <span class="audio-dur">5:12</span>
+      </div>
+      <span class="audio-status as-ready">✓ Ready</span>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════ SCRIPT TAB ═══════════════ -->
+<div id="tab-script" class="tab">
+  <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:24px;flex-wrap:wrap;gap:12px">
+    <div>
+      <div style="font-family:var(--font-display);font-size:28px;letter-spacing:.08em;margin-bottom:4px">SCRIPT DIFF</div>
+      <div style="font-size:13px;color:var(--muted);font-weight:300">v1 → v2 · Changes requested: "make opening more dramatic, cut the history lecture in scene 2"</div>
+    </div>
+    <div style="display:flex;gap:8px">
+      <div style="background:rgba(46,204,113,.1);border:1px solid rgba(46,204,113,.2);color:var(--green);padding:6px 14px;border-radius:6px;font-size:12px;font-family:var(--font-mono)">+4 lines</div>
+      <div style="background:rgba(230,57,70,.1);border:1px solid rgba(230,57,70,.2);color:var(--accent2);padding:6px 14px;border-radius:6px;font-size:12px;font-family:var(--font-mono)">−7 lines</div>
+    </div>
+  </div>
+  <div class="diff-card">
+    <div class="diff-header">
+      <span class="diff-title">Scene 1 — Cold Open</span>
+      <span class="diff-meta">voiceover · was 31 words → now 24 words</span>
+    </div>
+    <div class="diff-body">
+      <div class="diff-line removed"><span class="diff-num">1</span><span class="diff-prefix" style="color:#5a2d2d">−</span><span class="diff-content">"It was March 11th, 2011. The Tohoku earthquake triggered a devastating tsunami..."</span></div>
+      <div class="diff-line removed"><span class="diff-num">2</span><span class="diff-prefix" style="color:#5a2d2d">−</span><span class="diff-content">"...which struck the Fukushima Daiichi nuclear power plant operated by TEPCO."</span></div>
+      <div class="diff-line added"><span class="diff-num">1</span><span class="diff-prefix" style="color:#2d5a3d">+</span><span class="diff-content">"March 11th, 2011. A wave 15 metres high hit the coast of Japan."</span></div>
+      <div class="diff-line added"><span class="diff-num">2</span><span class="diff-prefix" style="color:#2d5a3d">+</span><span class="diff-content">"[PAUSE] And for the next decade — the ground itself was poison."</span></div>
+      <div class="diff-line"><span class="diff-num">3</span><span class="diff-prefix" style="color:var(--muted2)"> </span><span class="diff-content" style="color:var(--muted)">"The radiation inside reactor 2 measured 1,000 sieverts per hour."</span></div>
+    </div>
+  </div>
+  <div class="diff-card">
+    <div class="diff-header">
+      <span class="diff-title">Scene 2 — World Setup</span>
+      <span class="diff-meta">voiceover · trimmed exposition</span>
+    </div>
+    <div class="diff-body">
+      <div class="diff-line removed"><span class="diff-num">1</span><span class="diff-prefix" style="color:#5a2d2d">−</span><span class="diff-content">"The Fukushima nuclear disaster was one of the worst nuclear accidents since Chernobyl in 1986, rated at level 7 on the INES scale."</span></div>
+      <div class="diff-line removed"><span class="diff-num">2</span><span class="diff-prefix" style="color:#5a2d2d">−</span><span class="diff-content">"Three reactor cores melted down, releasing radioactive material into the environment."</span></div>
+      <div class="diff-line added"><span class="diff-num">1</span><span class="diff-prefix" style="color:#2d5a3d">+</span><span class="diff-content">"A lethal dose for a human is 8 sieverts. Inside reactor 2: 1,000."</span></div>
+      <div class="diff-line added"><span class="diff-num">2</span><span class="diff-prefix" style="color:#2d5a3d">+</span><span class="diff-content">"No one was going in. [PAUSE] So they built something that could."</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════ QUEUE TAB ═══════════════ -->
+<div id="tab-queue" class="tab">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px">
+    <div>
+      <div style="font-family:var(--font-display);font-size:28px;letter-spacing:.08em;margin-bottom:4px">MORNING QUEUE</div>
+      <div style="font-size:13px;color:var(--muted);font-weight:300">5 candidates found today · pick one or add your own</div>
+    </div>
+    <button onclick="alert('Add your own story idea — type it in OpenClaw or paste a URL here')" style="background:var(--surface2);border:1px solid var(--border2);color:var(--text);padding:9px 18px;border-radius:8px;font-size:13px;font-family:var(--font-body);cursor:pointer">+ Add idea</button>
+  </div>
+
+  <div class="queue-card">
+    <div class="queue-num">1</div>
+    <div class="queue-content">
+      <div class="viral-stars">★★★★★</div>
+      <div class="queue-title">The woman who decoded Nazi messages by pretending to be stupid</div>
+      <div class="queue-hook">Elizebeth Smith Friedman — the US's greatest codebreaker, deliberately erased from history so the FBI could take credit.</div>
+      <div class="queue-tags"><span class="q-tag">thriller</span><span class="q-tag">espionage</span><span class="q-tag">WWII</span><span class="q-tag">strong_female_lead</span></div>
+    </div>
+    <div class="queue-actions">
+      <button class="q-pick" onclick="alert('Picked! Director will start research on this story.')">Pick this</button>
+      <button class="q-skip">Skip</button>
+    </div>
+  </div>
+
+  <div class="queue-card">
+    <div class="queue-num">2</div>
+    <div class="queue-content">
+      <div class="viral-stars">★★★★☆</div>
+      <div class="queue-title">How a single programmer accidentally broke the internet for 11 minutes</div>
+      <div class="queue-hook">Cloudflare outage 2025 — traced to one misconfigured BGP rule by a junior engineer at 2am.</div>
+      <div class="queue-tags"><span class="q-tag">tech</span><span class="q-tag">thriller</span><span class="q-tag">cyber</span></div>
+    </div>
+    <div class="queue-actions">
+      <button class="q-pick" onclick="alert('Picked!')">Pick this</button>
+      <button class="q-skip">Skip</button>
+    </div>
+  </div>
+
+  <div class="queue-card">
+    <div class="queue-num">3</div>
+    <div class="queue-content">
+      <div class="viral-stars">★★★★☆</div>
+      <div class="queue-title">The Japanese soldier who kept fighting for 29 years because no one told him the war ended</div>
+      <div class="queue-hook">Hiroo Onoda — refused to surrender until 1974, loyal to a reality that had dissolved decades before.</div>
+      <div class="queue-tags"><span class="q-tag">WWII</span><span class="q-tag">isolation</span><span class="q-tag">loyalty</span><span class="q-tag">tragic</span></div>
+    </div>
+    <div class="queue-actions">
+      <button class="q-pick" onclick="alert('Picked!')">Pick this</button>
+      <button class="q-skip">Skip</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════ PERFORMANCE TAB ═══════════════ -->
+<div id="tab-performance" class="tab">
+  <div style="font-family:var(--font-display);font-size:28px;letter-spacing:.08em;margin-bottom:24px">CHANNEL INTELLIGENCE</div>
+
+  <div class="perf-grid">
+    <div class="chart-card">
+      <div class="chart-title">Top Videos — Views (7 days)</div>
+      <div class="bar-chart">
+        <div class="bar-row"><span class="bar-label">Fukushima Robots</span><div class="bar-track"><div class="bar-fill" style="width:100%;background:linear-gradient(90deg,var(--accent),#ff6b6b)"></div></div><span class="bar-val">284k</span></div>
+        <div class="bar-row"><span class="bar-label">Chernobyl Divers</span><div class="bar-track"><div class="bar-fill" style="width:78%;background:linear-gradient(90deg,var(--purple),#9b8ff7)"></div></div><span class="bar-val">221k</span></div>
+        <div class="bar-row"><span class="bar-label">Turing Test 1950</span><div class="bar-track"><div class="bar-fill" style="width:55%;background:linear-gradient(90deg,var(--blue),#5ba8e3)"></div></div><span class="bar-val">157k</span></div>
+        <div class="bar-row"><span class="bar-label">D-Day Navigator</span><div class="bar-track"><div class="bar-fill" style="width:48%;background:linear-gradient(90deg,var(--green),#40c980)"></div></div><span class="bar-val">136k</span></div>
+        <div class="bar-row"><span class="bar-label">Tesla vs Edison</span><div class="bar-track"><div class="bar-fill" style="width:32%;background:linear-gradient(90deg,var(--yellow),#f5b942)"></div></div><span class="bar-val">91k</span></div>
+      </div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-title">Retention by Genre (avg %)</div>
+      <div class="bar-chart">
+        <div class="bar-row"><span class="bar-label">Tech / Machines</span><div class="bar-track"><div class="bar-fill" style="width:92%;background:linear-gradient(90deg,var(--green),#27ae60)"></div></div><span class="bar-val">78%</span></div>
+        <div class="bar-row"><span class="bar-label">WWII / Military</span><div class="bar-track"><div class="bar-fill" style="width:85%;background:linear-gradient(90deg,var(--green),#27ae60)"></div></div><span class="bar-val">72%</span></div>
+        <div class="bar-row"><span class="bar-label">Science / Discovery</span><div class="bar-track"><div class="bar-fill" style="width:78%;background:linear-gradient(90deg,var(--yellow),#f5b942)"></div></div><span class="bar-val">66%</span></div>
+        <div class="bar-row"><span class="bar-label">Political / Espionage</span><div class="bar-track"><div class="bar-fill" style="width:72%;background:linear-gradient(90deg,var(--yellow),#f5b942)"></div></div><span class="bar-val">61%</span></div>
+        <div class="bar-row"><span class="bar-label">Romance / Personal</span><div class="bar-track"><div class="bar-fill" style="width:48%;background:linear-gradient(90deg,var(--accent),#c0392b)"></div></div><span class="bar-val">41%</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="chart-card" style="margin-bottom:20px">
+    <div class="chart-title">Style Performance</div>
+    <div class="style-grid">
+      <div class="style-tile"><div class="style-score">78%</div><div class="style-name">Dark Seinen</div></div>
+      <div class="style-tile"><div class="style-score" style="color:var(--purple)">71%</div><div class="style-name">Wuxia Ink</div></div>
+      <div class="style-tile"><div class="style-score" style="color:var(--blue)">65%</div><div class="style-name">Ghibli Warm</div></div>
+      <div class="style-tile"><div class="style-score" style="color:var(--yellow)">62%</div><div class="style-name">Cyber Noir</div></div>
+      <div class="style-tile"><div class="style-score" style="color:var(--muted)">44%</div><div class="style-name">Slice of Life</div></div>
+    </div>
+  </div>
+
+  <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.1em;margin-bottom:14px">Director Insights</div>
+  <div class="insight-card">
+    <div class="insight-icon">📈</div>
+    <div class="insight-txt">Tech + machines content outperforms your channel average by 34%. The Fukushima episode is tracking toward your best-ever first 48 hours.</div>
+    <div class="insight-sub">Pattern: real-world technology stories with a single protagonist (even non-human) drive the highest retention.</div>
+  </div>
+  <div class="insight-card">
+    <div class="insight-icon">⚠️</div>
+    <div class="insight-txt">Romance and personal stories consistently underperform (41% avg retention vs 67% channel average). Consider avoiding or rethinking the framing.</div>
+    <div class="insight-sub">Last 3 romance-adjacent videos all below 50k views despite strong production quality.</div>
+  </div>
+  <div class="insight-card">
+    <div class="insight-icon">🎨</div>
+    <div class="insight-txt">Dark Seinen style is your top performer. Worth defaulting to it for war/tech content even when the story tone is ambiguous.</div>
+    <div class="insight-sub">7 of your top 10 videos used Dark Seinen or Wuxia Ink aesthetic.</div>
+  </div>
+</div>
+
+<script>
+// Tab switching
+function show(name) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('nav button').forEach(b => b.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+  const tabs = ['team','pipeline','storyboard','audio','script','queue','performance'];
+  document.querySelectorAll('nav button')[tabs.indexOf(name)]?.classList.add('active');
+}
+
+// Generate waveform bars
+function makeWave(id) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  const heights = Array.from({length:40}, () => Math.random()*.7+.15);
+  el.innerHTML = heights.map(h =>
+    `<span style="height:${Math.round(h*26)}px;opacity:${.3+h*.5}"></span>`
+  ).join('');
+}
+['wb1','wb2','wb3','wb4'].forEach(makeWave);
+
+// Mock play
+function mockPlay(btn) {
+  btn.textContent = btn.textContent === '▶' ? '■' : '▶';
+}
+
+// Storyboard panels
+const scenes = [
+  { n:1, name:'COLD OPEN', type:'IMAGE', dur:18, music:'eerie', status:'complete', lang:'ZH',
+    visual:'Aerial view of Fukushima Daiichi. Steam rising from reactor 3. Dawn light. Eerie stillness.',
+    vo:'"March 11th, 2011. A wave 15 metres high hit the coast of Japan. [PAUSE] And for the next decade — the ground itself was poison."',
+    prompt:'Dark seinen anime style, aerial establishing shot nuclear plant at dawn, ink-wash shadows, steam rising...',
+    img:'https://picsum.photos/seed/fuk1/640/360', route:'seedance' },
+  { n:2, name:'WORLD SETUP', type:'IMAGE', dur:32, music:'tense', status:'complete', lang:'ZH',
+    visual:'Engineers in hazmat suits staring at reactor temperature readouts. Faces drawn tight.',
+    vo:'"A lethal dose for a human is 8 sieverts. Inside reactor 2: 1,000. No one was going in."',
+    prompt:'Crisis command room, hazmat engineers, reactor readouts, harsh fluorescent overhead...',
+    img:'https://picsum.photos/seed/cmd2/640/360', route:'seedance' },
+  { n:3, name:'THE ROBOT', type:'VIDEO', dur:8, music:'epic', status:'complete', lang:'EN', isVideo:true,
+    visual:'Close-up of Quince robot. Yellow-black body, tank treads, cameras for eyes. Moving through flooded corridor.',
+    vo:'"Meet Quince. Built by Chiba Institute. Designed for one purpose: go where humans cannot."',
+    prompt:'Quince robot hero shot, low angle, dramatic lighting, flooded nuclear corridor...',
+    img:'https://picsum.photos/seed/rob3/640/360', route:'runway' },
+  { n:4, name:'FIRST ATTEMPT', type:'VIDEO', dur:8, music:'tense', status:'complete', lang:'EN', isVideo:true,
+    visual:'Quince on a debris-covered staircase. Its treads grip the edge, slip, catch. Engineers frozen watching on screens.',
+    vo:'"On its first mission inside reactor 2, Quince fell down a flight of stairs. The team watched — helpless — on a 2cm screen."',
+    prompt:'Robot navigating collapsed staircase, engineers watching monitors, split composition...',
+    img:'https://picsum.photos/seed/stair4/640/360', route:'runway' },
+  { n:5, name:'THE DATA', type:'IMAGE', dur:28, music:'melancholic', status:'complete', lang:'ZH',
+    visual:"Quince's camera feed — blurry image of reactor containment chamber. Data overlay: temperature, radiation levels.",
+    vo:'"It came back. And the images it brought — the first footage from inside — changed everything."',
+    prompt:'Robot camera feed display, green monochrome surveillance aesthetic, radiation data overlay...',
+    img:'https://picsum.photos/seed/data5/640/360', route:'seedance' },
+  { n:6, name:'SETBACK', type:'IMAGE', dur:24, music:'silence', status:'submitted', lang:'ZH',
+    visual:"Dead robot silhouette. One light source — the screen of Quince's last transmission.",
+    vo:'"Then Quince stopped transmitting. Somewhere inside reactor 2 — it simply stopped."',
+    prompt:'Dead robot silhouette, single screen light source, ink-wash atmosphere...', route:'kling' },
+  { n:7, name:'CLIMAX', type:'VIDEO', dur:10, music:'epic', status:'pending', lang:'ZH',
+    visual:'Montage of robot generations: Scorpion, Sasori, Sunfish. Each one more advanced, walking toward camera.',
+    vo:'"So they built another. And another. Each generation smarter, tougher, going deeper."',
+    prompt:'Robot evolution montage, each generation more advanced, dramatic lighting...', route:'kling' },
+  { n:8, name:'RESOLUTION', type:'IMAGE', dur:22, music:'melancholic', status:'pending', lang:'ZH',
+    visual:'Robot at reactor core. Molten corium glow reflected in camera lens. Reverent, quiet moment.',
+    vo:'"In 2019 — a robot finally reached the corium. It photographed the thing that had been invisible for eight years."',
+    prompt:'Robot at molten reactor core, corium glow, camera lens reflection, reverent...', route:'kling' }
+];
+
+const routeColors = { seedance:'background:rgba(123,104,238,.2);color:#9b8ff7',
+                       runway:'background:rgba(52,152,219,.2);color:#60a5fa',
+                       kling:'background:rgba(46,204,113,.2);color:#4ade80' };
+
+function renderPanel(s) {
+  const cl = {complete:'complete', redo_requested:'redo-req'}[s.status]||'';
+  let imgHtml = '';
+  if ((s.status==='complete'||s.status==='redo_requested') && s.img) {
+    imgHtml = `<img src="${s.img}" alt="s${s.n}" loading="lazy">`;
+  } else if (s.status==='submitted') {
+    imgHtml = `<div class="panel-placeholder"><div class="placeholder-icon">⏳</div><div class="placeholder-txt">generating…</div><div class="gen-shimmer"><div class="gen-fill"></div></div></div>`;
+  } else {
+    imgHtml = `<div class="panel-placeholder"><div class="placeholder-icon">○</div><div class="placeholder-txt">queued</div></div>`;
+  }
+  const badge = {complete:'<span class="b b-done">✓ DONE</span>',submitted:'<span class="b b-gen">⏳ GEN</span>',pending:'<span class="b b-wait">○ QUEUED</span>',redo_requested:'<span class="b b-redo">↺ REDO</span>'}[s.status]||'';
+  const routeBadge = s.route?`<span style="position:absolute;bottom:8px;right:8px;padding:3px 8px;border-radius:4px;font-size:10px;font-family:var(--font-mono);font-weight:600;${routeColors[s.route]||''}">${s.route.toUpperCase()}</span>`:'';
+  const videoBadge = s.isVideo?`<span class="b b-type" style="position:absolute;top:8px;left:8px">▶ VIDEO</span>`:'';
+  return `
+<div class="panel ${cl}" id="panel-${s.n}">
+  <div class="panel-img">
+    ${imgHtml}
+    <div class="badges">${badge}</div>
+    ${videoBadge}
+    ${routeBadge}
+  </div>
+  <div class="panel-body">
+    <div class="p-num">SCENE ${s.n} · ${s.dur}s · 🎵 ${s.music}</div>
+    <div class="p-name">${s.name}</div>
+    <div class="chips">
+      <span class="chip">${s.type}</span>
+      <span class="chip">${s.lang} prompt</span>
+      <span class="chip" style="${routeColors[s.route]||''};border-radius:4px;padding:3px 8px;font-size:11px;">${s.route||'—'}</span>
+    </div>
+    <div class="sec-label">Visual</div>
+    <div class="sec-txt">${s.visual||'<span style="color:var(--muted2)">Not yet generated</span>'}</div>
+    <div class="sec-label">Voiceover</div>
+    <div class="vo-txt">${s.vo}</div>
+    <div class="panel-foot">
+      <button class="btn-sm" onclick="togglePrompt(${s.n})">Show prompt</button>
+      <button class="btn-sm btn-redo" id="rbtn-${s.n}" onclick="toggleRedo(${s.n})">↺ Redo</button>
+    </div>
+    <div class="prompt-reveal" id="pr-${s.n}"><code>${s.prompt||'—'}</code></div>
+    <div class="redo-panel" id="rp-${s.n}">
+      <textarea placeholder="What to change? e.g. 'darker lighting, camera lower angle, more rain'"></textarea>
+      <button class="redo-send" onclick="sendRedo(${s.n})">Send ↵</button>
+    </div>
+  </div>
+</div>`;
+}
+
+document.getElementById('panel-grid').innerHTML = scenes.map(renderPanel).join('');
+
+function togglePrompt(n) {
+  const el = document.getElementById(`pr-${n}`);
+  el.style.display = el.style.display==='block'?'none':'block';
+}
+function toggleRedo(n) {
+  const rp = document.getElementById(`rp-${n}`);
+  const btn = document.getElementById(`rbtn-${n}`);
+  const open = rp.style.display==='block';
+  rp.style.display = open?'none':'block';
+  btn.textContent = open?'↺ Redo':'✕ Cancel';
+}
+function sendRedo(n) {
+  const panel = document.getElementById(`panel-${n}`);
+  panel.querySelector('.b-done')?.classList.replace('b-done','b-redo');
+  panel.querySelector('.b-done')?.textContent && (panel.querySelector('[class*="b-"]').textContent='↺ REDO');
+  panel.className = panel.className.replace('complete','redo-req');
+  document.getElementById(`rp-${n}`).style.display='none';
+  document.getElementById(`rbtn-${n}`).textContent='↺ Redo';
+  alert(`↺ Redo queued for Scene ${n}\n\nDirector will regenerate this scene on next poll.\nAll other scenes untouched.`);
+}
+function handleApprove() {
+  if(confirm('Approve storyboard and start full generation?\n\nVisual, audio and assembly will run automatically.')) {
+    alert('✅ Approved.\n\nDirector will now:\n• Start video generation for remaining scenes\n• Generate voiceover + music in parallel\n• Assemble final video when both complete\n\nCheck the Team and Pipeline tabs for live progress.');
+  }
+}
+</script>
+</body>
+</html>

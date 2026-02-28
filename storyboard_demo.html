@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Anime Channel — Storyboard Demo</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Space+Mono:ital@0;1&display=swap');
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Space Grotesk', sans-serif; background: #0a0a10; color: #e0e0ee; min-height: 100vh; }
+
+  /* NAV */
+  nav { display: flex; gap: 0; border-bottom: 1px solid #1e1e2e; background: #0d0d16;
+        position: sticky; top: 0; z-index: 100; padding: 0 24px; }
+  .nav-brand { display: flex; align-items: center; gap: 8px; padding: 14px 0;
+               margin-right: 24px; font-size: 13px; font-weight: 700; color: #7c6ff7; }
+  nav button { background: none; border: none; color: #555; padding: 14px 18px;
+               cursor: pointer; font-size: 13px; font-weight: 500; font-family: inherit;
+               border-bottom: 2px solid transparent; transition: all .15s; }
+  nav button:hover { color: #aaa; }
+  nav button.active { color: #a78bfa; border-bottom-color: #a78bfa; }
+
+  /* LAYOUT */
+  .tab { display: none; padding: 28px 24px; max-width: 1200px; margin: 0 auto; }
+  .tab.active { display: block; }
+
+  /* STORYBOARD HEADER */
+  .sb-header { display: flex; align-items: flex-start; justify-content: space-between;
+               margin-bottom: 28px; flex-wrap: wrap; gap: 16px; }
+  .sb-meta { }
+  .sb-episode { font-size: 11px; color: #5a5a7a; text-transform: uppercase;
+                letter-spacing: .12em; margin-bottom: 6px; }
+  .sb-title { font-size: 22px; font-weight: 700; color: #e8e8f8; line-height: 1.2; }
+  .sb-style { font-size: 13px; color: #7c6ff7; margin-top: 5px; }
+  .sb-controls { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .progress-pill { background: #1a1a28; border: 1px solid #2a2a40; border-radius: 20px;
+                   padding: 8px 16px; font-size: 13px; color: #888; }
+  .progress-pill span { color: #a78bfa; font-weight: 700; }
+  .approve-btn { background: linear-gradient(135deg, #22c55e, #16a34a);
+                 color: #fff; border: none; padding: 10px 24px;
+                 border-radius: 8px; font-weight: 700; font-size: 14px;
+                 cursor: pointer; font-family: inherit; transition: opacity .15s;
+                 box-shadow: 0 0 20px rgba(34,197,94,.2); }
+  .approve-btn:hover { opacity: .9; }
+
+  /* PANEL GRID */
+  .panel-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px,1fr)); gap: 20px; }
+
+  .panel { background: #111120; border-radius: 14px; overflow: hidden;
+           border: 1px solid #1e1e30; transition: border-color .2s, transform .2s; cursor: default; }
+  .panel:hover { border-color: #3a3a5a; transform: translateY(-1px); }
+  .panel.complete { border-color: #1a3828; }
+  .panel.redo { border-color: #4a2e08; }
+  .panel.generating { border-color: #1a2a4a; }
+
+  /* IMAGE AREA */
+  .panel-img { width: 100%; aspect-ratio: 16/9; position: relative; overflow: hidden;
+               background: #0d0d1a; }
+  .panel-img img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .panel-img .pending-state { width: 100%; height: 100%; display: flex; flex-direction: column;
+                               align-items: center; justify-content: center; gap: 8px; }
+  .pending-icon { font-size: 28px; opacity: .3; }
+  .pending-text { font-size: 12px; color: #3a3a55; }
+  .generating-bar { width: 60%; height: 2px; background: #1e1e30; border-radius: 2px;
+                    overflow: hidden; margin-top: 8px; }
+  .generating-fill { height: 100%; background: linear-gradient(90deg, #7c6ff7, #a78bfa);
+                     width: 60%; animation: shimmer 1.5s ease-in-out infinite; }
+  @keyframes shimmer { 0%,100% { opacity:.4; transform: translateX(-20%); }
+                       50% { opacity:1; transform: translateX(40%); } }
+
+  /* BADGES */
+  .badge-row { position: absolute; top: 10px; left: 10px; right: 10px;
+               display: flex; justify-content: space-between; align-items: flex-start; }
+  .badge { padding: 4px 9px; border-radius: 5px; font-size: 11px; font-weight: 600;
+           font-family: 'Space Mono', monospace; }
+  .badge-done { background: rgba(20,80,50,.85); color: #4ade80; border: 1px solid rgba(74,222,128,.2); }
+  .badge-gen  { background: rgba(30,50,90,.85); color: #60a5fa; border: 1px solid rgba(96,165,250,.2); }
+  .badge-wait { background: rgba(20,20,35,.85); color: #444; border: 1px solid #2a2a40; }
+  .badge-redo { background: rgba(80,40,5,.85); color: #fbbf24; border: 1px solid rgba(251,191,36,.2); }
+  .badge-type { background: rgba(10,10,20,.7); color: #7c6ff7; border: 1px solid rgba(124,111,247,.2); }
+
+  /* PANEL BODY */
+  .panel-body { padding: 16px 18px; }
+  .scene-num { font-size: 10px; color: #3a3a55; font-family: 'Space Mono', monospace;
+               letter-spacing: .1em; margin-bottom: 4px; }
+  .scene-name { font-size: 15px; font-weight: 700; color: #e0e0f0; margin-bottom: 12px; }
+
+  .meta-row { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px; }
+  .chip { background: #1a1a28; color: #5a5a7a; padding: 3px 8px; border-radius: 4px;
+          font-size: 11px; font-family: 'Space Mono', monospace; }
+
+  .section { margin-bottom: 12px; }
+  .section-label { font-size: 10px; color: #3a3a55; text-transform: uppercase;
+                   letter-spacing: .1em; margin-bottom: 5px; }
+  .visual-text { font-size: 13px; color: #aaa; line-height: 1.6; }
+  .vo-block { border-left: 2px solid #3a3065; padding-left: 12px;
+              font-size: 13px; color: #8888aa; line-height: 1.7; font-style: italic; }
+
+  .panel-footer { display: flex; justify-content: space-between; align-items: center;
+                  margin-top: 14px; padding-top: 12px; border-top: 1px solid #1a1a28; }
+  .prompt-link { font-size: 11px; color: #3a3a55; cursor: pointer;
+                 transition: color .15s; text-decoration: underline; text-underline-offset: 3px; }
+  .prompt-link:hover { color: #7c6ff7; }
+  .redo-btn { background: #1a1205; color: #d97706; border: 1px solid #3a2505;
+              padding: 5px 12px; border-radius: 6px; font-size: 12px; font-family: inherit;
+              cursor: pointer; transition: background .15s; }
+  .redo-btn:hover { background: #251a08; }
+  .redo-active { background: #251a08; border-color: #fbbf24; color: #fbbf24; }
+
+  .redo-area { background: #0d0d18; border-radius: 8px; padding: 12px;
+               margin-top: 10px; border: 1px solid #3a2505; display: none; }
+  .redo-area textarea { width: 100%; background: transparent; border: none; color: #ccc;
+                        font-size: 12px; font-family: inherit; resize: vertical;
+                        min-height: 56px; outline: none; }
+  .redo-area textarea::placeholder { color: #333; }
+  .redo-send { background: #d97706; color: #000; border: none; padding: 6px 14px;
+               border-radius: 5px; font-size: 12px; font-weight: 700; font-family: inherit;
+               cursor: pointer; margin-top: 6px; float: right; }
+
+  .prompt-box { background: #0d0d18; border-radius: 8px; padding: 12px;
+                margin-top: 8px; display: none; }
+  .prompt-box code { font-size: 11px; font-family: 'Space Mono', monospace;
+                     color: #5a5a7a; line-height: 1.7; white-space: pre-wrap; }
+
+  /* PIPELINE TAB */
+  .pipeline-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px,1fr)); gap: 12px; margin-bottom: 24px; }
+  .stat-card { background: #111120; border: 1px solid #1e1e30; border-radius: 12px; padding: 18px; }
+  .stat-label { font-size: 11px; color: #444; text-transform: uppercase; letter-spacing: .1em; margin-bottom: 8px; }
+  .stat-value { font-size: 22px; font-weight: 700; }
+  .stat-green { color: #22c55e; } .stat-yellow { color: #eab308; }
+  .stat-purple { color: #a78bfa; } .stat-red { color: #ef4444; } .stat-gray { color: #555; }
+  .status-pill { display: inline-flex; align-items: center; gap: 8px; background: #1a1a28;
+                 border: 1px solid #2a2a40; border-radius: 20px; padding: 10px 18px;
+                 font-size: 14px; font-weight: 600; margin-bottom: 24px; }
+  .pulse { width: 8px; height: 8px; border-radius: 50%; background: #eab308;
+           box-shadow: 0 0 0 0 rgba(234,179,8,.4);
+           animation: pulse 2s infinite; }
+  @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(234,179,8,.4); }
+                     70% { box-shadow: 0 0 0 8px rgba(234,179,8,0); }
+                     100% { box-shadow: 0 0 0 0 rgba(234,179,8,0); } }
+  .log-box { background: #0d0d16; border-radius: 10px; padding: 14px; font-family: 'Space Mono', monospace;
+             font-size: 11px; color: #444; max-height: 180px; overflow-y: auto; }
+  .log-line { margin-bottom: 5px; }
+  .log-ts { color: #2a2a40; margin-right: 10px; }
+  .log-event { color: #5a5a7a; }
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="nav-brand">⛩ ANIME CHANNEL</div>
+  <button onclick="showTab('pipeline')">Pipeline</button>
+  <button class="active" onclick="showTab('storyboard')">🎬 Storyboard</button>
+  <button onclick="showTab('queue')">Queue</button>
+  <button onclick="showTab('published')">Published</button>
+</nav>
+
+<!-- PIPELINE TAB -->
+<div id="tab-pipeline" class="tab">
+  <div class="status-pill">
+    <span class="pulse"></span>
+    generating — visual batch 2/3
+  </div>
+  <div class="pipeline-grid">
+    <div class="stat-card"><div class="stat-label">Scenes Complete</div><div class="stat-value stat-purple">5/8</div></div>
+    <div class="stat-card"><div class="stat-label">Visual Phase</div><div class="stat-value stat-yellow">Running</div></div>
+    <div class="stat-card"><div class="stat-label">Audio Phase</div><div class="stat-value stat-gray">Waiting</div></div>
+    <div class="stat-card"><div class="stat-label">Credits Left</div><div class="stat-value stat-green">614</div></div>
+    <div class="stat-card"><div class="stat-label">Degraded</div><div class="stat-value stat-gray">0</div></div>
+    <div class="stat-card"><div class="stat-label">Errors</div><div class="stat-value stat-gray">0</div></div>
+  </div>
+  <div style="margin-bottom:8px;font-size:11px;color:#3a3a55;text-transform:uppercase;letter-spacing:.1em">Recent log</div>
+  <div class="log-box">
+    <div class="log-line"><span class="log-ts">13:44:02</span><span class="log-event">scene_5 submitted → task_8f2a91c</span></div>
+    <div class="log-line"><span class="log-ts">13:42:18</span><span class="log-event">scene_4 complete → assets/videos/scene_4.mp4</span></div>
+    <div class="log-line"><span class="log-ts">13:40:55</span><span class="log-event">scene_3 complete → assets/images/scene_3.png</span></div>
+    <div class="log-line"><span class="log-ts">13:39:01</span><span class="log-event">scene_2 complete → assets/images/scene_2.png</span></div>
+    <div class="log-line"><span class="log-ts">13:37:44</span><span class="log-event">storyboard_approved by owner</span></div>
+    <div class="log-line"><span class="log-ts">13:36:12</span><span class="log-event">scene_1 anchor test approved</span></div>
+    <div class="log-line"><span class="log-ts">13:31:05</span><span class="log-event">script approved — 8 scenes, 5:12 runtime</span></div>
+    <div class="log-line"><span class="log-ts">13:28:44</span><span class="log-event">research complete — story selected: Fukushima robots</span></div>
+  </div>
+</div>
+
+<!-- STORYBOARD TAB -->
+<div id="tab-storyboard" class="tab active">
+  <div class="sb-header">
+    <div class="sb-meta">
+      <div class="sb-episode">Episode 47 · Dark Seinen</div>
+      <div class="sb-title">The Machines That Saved Japan's Nuclear Hell</div>
+      <div class="sb-style">⛩ Wuxia-industrial aesthetic · high contrast · ink-wash shadows</div>
+    </div>
+    <div class="sb-controls">
+      <div class="progress-pill"><span>5</span>/8 scenes ready</div>
+      <button class="approve-btn" onclick="handleApprove()">✅ Approve &amp; Start Generation</button>
+    </div>
+  </div>
+
+  <div class="panel-grid" id="panel-grid"></div>
+</div>
+
+<!-- QUEUE TAB -->
+<div id="tab-queue" class="tab">
+  <div style="padding:48px;text-align:center;color:#3a3a55">Today's scout queue will appear here each morning.</div>
+</div>
+
+<!-- PUBLISHED TAB -->
+<div id="tab-published" class="tab">
+  <div style="padding:48px;text-align:center;color:#3a3a55">Published videos appear here after posting.</div>
+</div>
+
+<script>
+const scenes = [
+  {
+    n: 1, name: 'COLD OPEN', type: 'IMAGE', dur: 18, status: 'complete',
+    visual: 'Aerial view of Fukushima Daiichi plant, steam rising from reactor 3. Dawn light. Eerie stillness. Radiation warning signs half-buried in snow.',
+    style: 'Ink-wash industrial. Muted blues and grays. One streak of orange from the sunrise.',
+    vo: '\"March 11, 2011. A wave 15 metres high hit the coast of Japan. [PAUSE] And for the next decade, the ground itself was poison.\"',
+    music: 'eerie', prompt: 'Dark seinen anime style, aerial establishing shot of nuclear plant at dawn, ink-wash shadows, steam rising from reactor building, snow-covered warning signs...',
+    lang: 'ZH',
+    img: 'https://picsum.photos/seed/nuke1/640/360'
+  },
+  {
+    n: 2, name: 'WORLD SETUP', type: 'IMAGE', dur: 32, status: 'complete',
+    visual: 'Inside the crisis command center. Engineers in hazmat suits staring at screens showing reactor temperature readings. Faces drawn tight with fear.',
+    style: 'Harsh fluorescent overhead light. Blue-grey skin tones. Technical readouts in red.',
+    vo: '"The radiation inside reactor 2 measured 1,000 sieverts per hour. A lethal dose for a human is 8. No one was going in. [PAUSE] So they built something that could."',
+    music: 'tense', prompt: 'Crisis command room, engineers in hazmat suits, reactor readout screens, harsh overhead lighting, dark seinen anime style...',
+    lang: 'ZH',
+    img: 'https://picsum.photos/seed/command2/640/360'
+  },
+  {
+    n: 3, name: 'THE ROBOT', type: 'VIDEO', dur: 8, status: 'complete',
+    visual: 'Close-up of the Quince robot — yellow and black, tank treads, cameras for eyes. Moving slowly through a dark flooded corridor. Water reflects ceiling lights.',
+    style: 'Low angle, dramatic upward perspective. Robot looks heroic. Like a mecha reveal.',
+    vo: '"Meet Quince. Built by Chiba Institute of Technology. Designed for one purpose: go where humans cannot."',
+    music: 'epic', prompt: 'Quince robot close-up, yellow-black mechanical body, tank treads, camera sensors, flooded nuclear corridor, dramatic low angle...',
+    lang: 'ZH',
+    img: 'https://picsum.photos/seed/robot3/640/360',
+    isVideo: true
+  },
+  {
+    n: 4, name: 'FIRST ATTEMPT', type: 'VIDEO', dur: 8, status: 'complete',
+    visual: 'Quince navigating rubble. A staircase with debris. Its treads grip the edge. It slips — teeters — and catches itself. Engineers watch on screens, frozen.',
+    style: 'Shaky cam tension. Split screen: robot POV + engineers faces. Sound of motors straining.',
+    vo: '"On its first mission inside reactor 2, Quince fell down a flight of stairs. The team watched it happen — helpless — on a 2cm screen."',
+    music: 'tense', prompt: 'Robot navigating collapsed staircase, engineers watching monitor screens, split panel composition, shaky cam effect...',
+    lang: 'ZH',
+    img: 'https://picsum.photos/seed/stairs4/640/360',
+    isVideo: true
+  },
+  {
+    n: 5, name: 'THE DATA', type: 'IMAGE', dur: 28, status: 'complete',
+    visual: 'Close-up on Quince\'s camera feed — a blurry image of the reactor containment chamber. Data overlay: temperature readings, radiation levels. The first human-made eyes inside.',
+    style: 'Pixelated, surveillance aesthetic. Green monochrome data overlay. Historic weight.',
+    vo: '"It came back. And the images it brought — the first footage from inside the reactor — changed everything engineers thought they knew about what happened."',
+    music: 'melancholic', prompt: 'Robot camera feed display, green monochrome surveillance aesthetic, radiation data overlay, nuclear containment chamber view...',
+    lang: 'ZH',
+    img: 'https://picsum.photos/seed/data5/640/360'
+  },
+  {
+    n: 6, name: 'SETBACK', type: 'IMAGE', dur: 24, status: 'submitted',
+    visual: null, style: 'High contrast ink shadows. One light source — the screen of a dead robot.',
+    vo: '"Then Quince stopped transmitting. Somewhere inside reactor 2, it simply — stopped. The team had lost their eyes."',
+    music: 'silence', prompt: 'Dead robot silhouette, single screen light source, ink-wash shadows, dark atmospheric...',
+    lang: 'ZH', img: null
+  },
+  {
+    n: 7, name: 'CLIMAX', type: 'VIDEO', dur: 10, status: 'pending',
+    visual: null, style: 'Maximum contrast. Explosive reveal energy.',
+    vo: '"So they built another one. And another. Scorpion. Sasori. Sunfish. Each generation smarter, tougher, going deeper. Until finally—"',
+    music: 'epic', prompt: 'Montage of robot generations, each more advanced, walking toward camera, dramatic lighting...',
+    lang: 'ZH', img: null
+  },
+  {
+    n: 8, name: 'RESOLUTION', type: 'IMAGE', dur: 22, status: 'pending',
+    visual: null, style: 'Quiet. Almost peaceful. The contrast makes it hit harder.',
+    vo: '"In 2019, a robot finally reached the molten core — the corium. It photographed the thing that had been invisible for eight years. The ghost inside the machine."',
+    music: 'melancholic', prompt: 'Robot at reactor core, molten corium glow reflected in camera lens, reverent moment...',
+    lang: 'ZH', img: null
+  }
+];
+
+function renderPanel(s) {
+  const statusClass = { complete:'complete', submitted:'generating', redo_requested:'redo', pending:'' }[s.status] || '';
+
+  let imgHtml = '';
+  if (s.status === 'complete' && s.img) {
+    imgHtml = `<img src="${s.img}" alt="Scene ${s.n}" loading="lazy">`;
+    if (s.isVideo) imgHtml += `<div class="badge-row" style="top:8px;left:8px;right:auto"><span class="badge badge-type">▶ VIDEO</span></div>`;
+  } else if (s.status === 'submitted') {
+    imgHtml = `<div class="pending-state">
+      <div class="pending-icon">⏳</div>
+      <div class="pending-text">Generating…</div>
+      <div class="generating-bar"><div class="generating-fill"></div></div>
+    </div>`;
+  } else {
+    imgHtml = `<div class="pending-state">
+      <div class="pending-icon" style="font-size:22px">○</div>
+      <div class="pending-text">Queued</div>
+    </div>`;
+  }
+
+  const badge = { complete:'<span class="badge badge-done">✓ Done</span>',
+    submitted: '<span class="badge badge-gen">⏳ Generating</span>',
+    pending: '<span class="badge badge-wait">○ Queued</span>',
+    redo_requested: '<span class="badge badge-redo">↺ Redo</span>' }[s.status];
+
+  return `
+<div class="panel ${statusClass}" id="panel-${s.n}">
+  <div class="panel-img">
+    ${imgHtml}
+    <div class="badge-row">${badge}<span class="badge badge-type">${s.type}</span></div>
+  </div>
+  <div class="panel-body">
+    <div class="scene-num">SCENE ${s.n} · ${s.dur}s · 🎵 ${s.music}</div>
+    <div class="scene-name">${s.name}</div>
+    <div class="meta-row">
+      <span class="chip">${s.lang} prompt</span>
+      ${s.isVideo ? '<span class="chip">▶ video clip</span>' : '<span class="chip">🖼 image</span>'}
+    </div>
+    <div class="section">
+      <div class="section-label">Visual</div>
+      <div class="visual-text">${s.visual || '<span style="color:#333">Not yet generated</span>'}</div>
+    </div>
+    <div class="section">
+      <div class="section-label">Voiceover</div>
+      <div class="vo-block">${s.vo}</div>
+    </div>
+    <div class="panel-footer">
+      <span class="prompt-link" onclick="togglePrompt(${s.n})">Show prompt ↓</span>
+      <button class="redo-btn" id="redo-btn-${s.n}" onclick="toggleRedo(${s.n})">↺ Redo</button>
+    </div>
+    <div class="prompt-box" id="prompt-${s.n}">
+      <code>${s.prompt || '—'}</code>
+    </div>
+    <div class="redo-area" id="redo-area-${s.n}">
+      <textarea placeholder="Describe what to change… e.g. 'make the lighting darker, more rain, robot should look more worn'"></textarea>
+      <button class="redo-send" onclick="sendRedo(${s.n})">Send ↵</button>
+    </div>
+  </div>
+</div>`;
+}
+
+function togglePrompt(n) {
+  const el = document.getElementById(`prompt-${n}`);
+  el.style.display = el.style.display === 'block' ? 'none' : 'block';
+}
+
+function toggleRedo(n) {
+  const area = document.getElementById(`redo-area-${n}`);
+  const btn = document.getElementById(`redo-btn-${n}`);
+  const open = area.style.display === 'block';
+  area.style.display = open ? 'none' : 'block';
+  btn.textContent = open ? '↺ Redo' : '✕ Cancel';
+  btn.className = open ? 'redo-btn' : 'redo-btn redo-active';
+}
+
+function sendRedo(n) {
+  const panel = document.getElementById(`panel-${n}`);
+  panel.className = 'panel redo';
+  panel.querySelector('.badge-row').innerHTML = '<span class="badge badge-redo">↺ Redo requested</span>';
+  document.getElementById(`redo-area-${n}`).style.display = 'none';
+  document.getElementById(`redo-btn-${n}`).textContent = '↺ Redo';
+  document.getElementById(`redo-btn-${n}`).className = 'redo-btn';
+  alert(`Redo request sent to Director for Scene ${n}.\nVisual agent will regenerate this scene.`);
+}
+
+function handleApprove() {
+  if (confirm('Approve storyboard and start full video + audio generation?')) {
+    alert('✅ Storyboard approved!\n\nDirector will now:\n1. Start video generation for all scenes\n2. Generate voiceover + music in parallel\n3. Assemble final video when both complete\n\nCheck the Pipeline tab for progress.');
+  }
+}
+
+function showTab(name) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('nav button').forEach(b => b.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+  document.querySelectorAll('nav button')[['pipeline','storyboard','queue','published'].indexOf(name)].classList.add('active');
+}
+
+// Render panels
+document.getElementById('panel-grid').innerHTML = scenes.map(renderPanel).join('');
+</script>
+</body>
+</html>
